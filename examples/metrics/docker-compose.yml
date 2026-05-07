@@ -1,0 +1,13 @@
+services:
+  metrics-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: observability-metrics-demo
+    environment:
+      SERVICE_NAME: metrics-demo
+      METRICS_PORT: "8000"
+      SLEEP_SECONDS: "2"
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

@@ -1,0 +1,170 @@
+services:
+  loki:
+    build:
+      context: ../../logs/loki
+      dockerfile: Dockerfile
+    image: observability/loki:local
+    container_name: observability-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+      - ../../logs/loki/loki.yml:/etc/loki/local-config.yaml:ro
+    restart: unless-stopped
+    networks:
+      - observability
+
+  promtail:
+    build:
+      context: ../../logs/promtail
+      dockerfile: Dockerfile
+    image: observability/promtail:local
+    container_name: observability-promtail
+    depends_on:
+      - loki
+    ports:
+      - "9080:9080"
+    volumes:
+      - ../../logs/promtail/promtail.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    restart: unless-stopped
+    networks:
+      - observability
+
+  otel-collector:
+    build:
+      context: ../../collectors/otel-collector
+      dockerfile: Dockerfile
+    image: observability/otel-collector:local
+    container_name: observability-otel-collector
+    depends_on:
+      - tempo
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "13133:13133"
+      - "8888:8888"
+      - "8889:8889"
+    volumes:
+      - ../../collectors/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    restart: unless-stopped
+    networks:
+      - observability
+
+  tempo:
+    build:
+      context: ../../traces/tempo
+      dockerfile: Dockerfile
+    image: observability/tempo:local
+    container_name: observability-tempo
+    ports:
+      - "3200:3200"
+    volumes:
+      - tempo-data:/var/tempo
+      - ../../traces/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+    restart: unless-stopped
+    networks:
+      - observability
+
+  prometheus:
+    build:
+      context: ../../metrics/prometheus
+      dockerfile: Dockerfile
+    image: observability/prometheus:local
+    container_name: observability-prometheus
+    depends_on:
+      - otel-collector
+      - loki
+      - promtail
+      - node-exporter
+      - cadvisor
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - prometheus-data:/prometheus
+      - ../../metrics/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../../metrics/prometheus/rules:/etc/prometheus/rules:ro
+    restart: unless-stopped
+    networks:
+      - observability
+
+  node-exporter:
+    build:
+      context: ../../metrics/exporters/node-exporter
+      dockerfile: Dockerfile
+    image: observability/node-exporter:local
+    container_name: observability-node-exporter
+    command:
+      - --path.rootfs=/host
+    pid: host
+    restart: unless-stopped
+    volumes:
+      - /:/host:ro
+    networks:
+      - observability
+
+  cadvisor:
+    build:
+      context: ../../metrics/exporters/cadvisor
+      dockerfile: Dockerfile
+    image: observability/cadvisor:local
+    container_name: observability-cadvisor
+    privileged: true
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=10s
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /run/docker.sock:/var/run/docker.sock:ro
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    restart: unless-stopped
+    networks:
+      - observability
+
+  grafana:
+    build:
+      context: ../../dashboards/grafana
+      dockerfile: Dockerfile
+    image: observability/grafana:local
+    container_name: observability-grafana
+    depends_on:
+      - loki
+      - prometheus
+      - tempo
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../../dashboards/grafana/provisioning/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+      - ../../dashboards/grafana/provisioning/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - ../../dashboards/grafana/datasources/loki.yaml:/etc/grafana/provisioning/datasources/loki.yaml:ro
+      - ../../dashboards/grafana/datasources/prometheus.yaml:/etc/grafana/provisioning/datasources/prometheus.yaml:ro
+      - ../../dashboards/grafana/datasources/tempo.yaml:/etc/grafana/provisioning/datasources/tempo.yaml:ro
+      - ../../dashboards/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    restart: unless-stopped
+    networks:
+      - observability
+
+networks:
+  observability:
+    driver: bridge
+
+volumes:
+  loki-data:
+  grafana-data:
+  prometheus-data:
+  tempo-data:

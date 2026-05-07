@@ -1,0 +1,29 @@
+groups:
+  - name: observability-platform
+    rules:
+      - alert: OTelCollectorUnavailable
+        expr: up{job="otel-collector"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: OpenTelemetry Collector is down
+          description: Prometheus cannot scrape the OpenTelemetry Collector metrics endpoint.
+
+      - alert: LokiUnavailable
+        expr: up{job="loki"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Loki is down
+          description: Prometheus cannot scrape the Loki metrics endpoint.
+
+      - alert: PromtailUnavailable
+        expr: up{job="promtail"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Promtail is down
+          description: Prometheus cannot scrape the Promtail metrics endpoint.

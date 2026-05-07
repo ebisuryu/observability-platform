@@ -1,0 +1,19 @@
+services:
+  traces-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: observability-traces-demo
+    environment:
+      SERVICE_NAME: traces-demo
+      ENVIRONMENT: local
+      SLEEP_SECONDS: "2"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    restart: unless-stopped
+    networks:
+      - observability
+
+networks:
+  observability:
+    external: true
+    name: local_observability

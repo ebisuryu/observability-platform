@@ -1,0 +1,12 @@
+services:
+  logs-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: observability-logs-demo
+    environment:
+      LOG_LEVEL: INFO
+      SERVICE_NAME: logs-demo
+      ENVIRONMENT: local
+      SLEEP_SECONDS: "2"
+    restart: unless-stopped
